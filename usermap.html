@@ -1,0 +1,20 @@
+<head>
+  <title>usermap</title>
+</head>
+
+<body>
+  <div id="map-canvas"></div>
+  {{#isolate}}
+  <div id="box" style="{{#if currentUser}}height: 30px;{{else}}height: 100px;{{/if}}">
+  	{{loginButtons}}
+
+  	{{#if currentUser}}
+
+  	{{else}}
+	  	<p style="font-size: 80%">Your username and city will be set automatically from
+	  	your login service, and may be edited later.</p>
+	{{/if}}
+  </div>
+  {{/isolate}}
+</body>
+
