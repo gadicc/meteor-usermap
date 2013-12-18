@@ -4,17 +4,25 @@
 
 <body>
   <div id="map-canvas"></div>
-  {{#isolate}}
-  <div id="box" style="{{#if currentUser}}height: 30px;{{else}}height: 100px;{{/if}}">
-  	{{loginButtons}}
+  {{> box}}
+</body>
+
+<template name="box">
+  <div id="box" style="height: {{height}}px;">
+  	{{loginButtons}}<br />
 
   	{{#if currentUser}}
-
+  		{{#if showOptions}}
+  			<a href="" id="showOptions" data-value="false">Hide</a><br />
+	  		<input type="text" id="inputName" value="{{username}}" placeholder="Name" /><br />
+	  		<input type="text" id="inputLocation" value="{{location}}" placeholder="Location" /><br />
+	  		<a href="" id="save">Save & Close</a><br />
+	  	{{else}}
+  			<a href="" id="showOptions" data-value="true">Options</a>
+	  	{{/if}}
   	{{else}}
 	  	<p style="font-size: 80%">Your username and city will be set automatically from
 	  	your login service, and may be edited later.</p>
 	{{/if}}
-  </div>
-  {{/isolate}}
-</body>
-
+  </div>	
+</template>

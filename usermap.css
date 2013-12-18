@@ -8,9 +8,16 @@
 
 #box {
 	position: absolute; right: 8px; top: 8px; z-index: 1000;
-	width: 200px; height: 100px; padding: 5px;
+	width: 250px; height: 100px; padding: 5px;
 	border: 1px solid black;
 	background: rgba(255,255,255,0.8);
 }
 
-div.infowindow img { height: 50px; }
+div.infowindow img { height: 50px; border: 1px solid black; }
+
+img.faceMarker {
+	width: 30px; height: 30px;
+	border: 1px solid black;
+}
+
+#box { font-size: 80%; }

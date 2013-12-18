@@ -1,4 +1,7 @@
 if (Meteor.isClient) {
+  Meteor.subscribe('userData');
+  Meteor.subscribe('users');
+  Meteor.subscribe('locations');
 
   markerInfo = function(marker) {
     console.log(marker);
@@ -7,14 +10,29 @@ if (Meteor.isClient) {
     infowindow.open(map, marker);
   }
 
+  // Randomize markers around the city center
+  var locRnd = function() {
+    return (Math.random() - 0.5) / 100;
+  }
+
   var userQueues = {};
+  var userMarkers = {};
   var addUserToMap = function(user) {
+    if (!user.profile || !user.profile.location)
+      return;
+
     var location = locations.get(user.profile.location);
     if (location) {
-      var marker = new google.maps.Marker({
-              position: new google.maps.LatLng(location.lat, location.lng),
-              //map: map
+      var marker = user.profile.pic ? new RichMarker({
+          position: new google.maps.LatLng(location.lat + locRnd(), location.lng + locRnd()),
+          content: '<img class="faceMarker" src="' + user.profile.pic + '" />',
+          anchor: new google.maps.Size(-16, 0)
+      }) : new google.maps.Marker({
+        position: new google.maps.LatLng(location.lat + locRnd(), location.lng + locRnd()),
+        //map: map        
       });
+      marker._user = user;
+      userMarkers[user._id] = marker;
 
       google.maps.event.addListener(marker, 'click', function() {
         var node = $('<div style="width: 200px; height: 150px;" class="infowindow">'
@@ -39,7 +57,7 @@ if (Meteor.isClient) {
 
   GoogleMaps.init(
       {
-          'sensor': true, //optional
+          'sensor': true //optional
       }, 
       function(){
 
@@ -57,36 +75,27 @@ if (Meteor.isClient) {
           window.markerCluster = new MarkerClusterer(map);
           window.infowindow = new google.maps.InfoWindow();
 
-          Meteor.users.find().observe({
-            'added': function(user) {
-              addUserToMap(user);
-            }
-          });
+          jQuery.getScript("http://google-maps-utility-library-v3.googlecode.com/svn/trunk/richmarker/src/richmarker-compiled.js",
+            function() {
 
-          return;
+              Meteor.users.find().observe({
+                'added': function(user) {
+                  addUserToMap(user);
+                }, 'changed': function(user) {
+                  console.log('change');
+                  if (userMarkers[user._id]) {
+                    markerCluster.removeMarker(userMarkers[user._id]);
+                    delete(userMarkers[user._id]);
+                  }
+                  _.defer(function() {
+                    // Can't do method calls inside observes??
+                    Meteor.call('checkLocation', user.profile.location);
+                  });
+                  addUserToMap(user);
+                }
+              });
 
-          var marker, i, markers = [];
-          var locations = ['Herzliya, Israel'];
-          return;
-
-          for (i = 0; i < locations.length; i++) {  
-            marker = new google.maps.Marker({
-              position: locations[i] //new google.maps.LatLng(locations[i][1], locations[i][2]),
-              //map: map
             });
-
-            google.maps.event.addListener(marker, 'click', (function(marker, i) {
-              return function() {
-                infowindow.setContent(locations[i][0]);
-                infowindow.open(map, marker);
-              }
-            })(marker, i));
-
-            markers.push(marker);
-          }
-
-          var markerCluster = new MarkerClusterer(map, markers);  
-
       }
   );
 
@@ -107,7 +116,7 @@ if (Meteor.isClient) {
 
       // TODO, rather do this server side
       if (!user.profile.location) {
-        if (user.services.facebook) {
+        if (user.services && user.services.facebook) {
           FB.api('/me?fields=location',
             { access_token: user.services.facebook.accessToken },
             function(response) {
@@ -120,8 +129,47 @@ if (Meteor.isClient) {
         }
       }
     });
- 
   }
+
+  Template.box.username = function() {
+    return Meteor.user().profile.name;
+  }
+  Template.box.location = function() {
+    return Meteor.user().profile.location;
+  }
+
+  Session.setDefault('showOptions', false);
+  Template.box.height = function() {
+    if (!Meteor.user())
+      return 100;
+    return Session.get('showOptions') ? 100 : 40;
+  }
+  Template.box.showOptions = function() {
+    return Session.get('showOptions');
+  }
+  Template.box.events({
+    'click #showOptions': function(event, tpl) {
+      event.preventDefault();
+      Session.set('showOptions', event.target.getAttribute('data-value') == 'true');
+    },
+    'click #save': function(event, tpl) {
+      event.preventDefault();
+      var user = Meteor.user(),
+        name = $('#inputName').val(),
+        location = $('#inputLocation').val(),
+        set = { };
+
+      if (user.profile.name != name)
+        set['profile.name'] = name;
+      if (user.profile.location != location)
+        set['profile.location'] = location;
+
+      if (set['profile.name'] || set['profile.location'])
+        Meteor.users.update(user._id, {$set: set});
+
+      Session.set('showOptions', false);
+    }
+  });
 
 }
 
@@ -132,6 +180,7 @@ locations = {
     return this.list[name];
   }
 };
+
 Locations.find().observe({ 
   'added': function(doc) {
     locations.list[doc.reqName] = {
@@ -155,6 +204,8 @@ Locations.find().observe({
 
 
 if (Meteor.isServer) {
+
+  // if the location doesn't exist, add it  
   locations.check = function(name) {
     if (!this.get(name)) {
       var res = gm.geocode(name);
@@ -165,6 +216,17 @@ if (Meteor.isServer) {
   };
 
   // TODO, only publish needed Location data to client
+
+  // fix for old logins
+  _.each(Meteor.users.find({profile: {$exists: false}}).fetch(), function(user) {
+    Meteor.users.update(user._id, {$set: {profile: {}}});
+  });
+  _.each(Meteor.users.find({'profile.name': {$exists: false}}).fetch(), function(user) {
+    Meteor.users.update(user._id, {$set: {'profile.name': 'Anonymous'}});
+  });
+  _.each(Meteor.users.find({'profile.pic': {$exists: false}}).fetch(), function(user) {
+    Meteor.users.update(user._id, {$set: {'profile.pic': '/avatar-empty.png'}});
+  });
 
   Meteor.startup(function () {
     // code to run on server at startup
@@ -246,11 +308,19 @@ if (Meteor.isServer) {
 
     }
 
+    if (!options.profile)
+      options.profile = {};
+
     if (options.profile.location)
       locations.check(options.profile.location);
 
-    if (options.profile)
-      user.profile = options.profile;
+    if (!options.profile.pic)
+      options.pic = '/avatar-empty.png';
+
+    if (!options.profile.name)
+      options.pic = 'Anonymous';
+
+    user.profile = options.profile;
 
     return user;
   });
@@ -261,5 +331,23 @@ if (Meteor.isServer) {
         locations.check(location);
       }
     }
-  }); 
+  });
+
+  // Publish profile (name, location, pic) of all users
+  Meteor.publish('users', function() {
+    return Meteor.users.find({}, { fields: { profile: 1 }} );
+  });
+
+  // Publish required data for each location
+  Meteor.publish('locations', function() {
+    return Locations.find({}, { fields: {
+      reqName: 1, formatted_address: 1,
+      'geometry.location.lat': 1, 'geometry.location.lng': 1
+    } });
+  });
+
+  // not ideal, just for clientside FB, must mo
+  Meteor.publish("userData", function () {
+    return Meteor.users.find({_id: this.userId}, {fields: {'services.facebook': 1}});
+  });  
 }

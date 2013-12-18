@@ -4,7 +4,6 @@
 # but you can also edit it by hand.
 
 standard-app-packages
-autopublish
 insecure
 preserve-inputs
 googlemaps
@@ -12,5 +11,5 @@ accounts-ui
 accounts-password
 accounts-facebook
 accounts-google
-npm
 accounts-github
+npm
