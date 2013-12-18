@@ -1,14 +1,6 @@
 if (Meteor.isClient) {
-  Meteor.subscribe('userData');
   Meteor.subscribe('users');
   Meteor.subscribe('locations');
-
-  markerInfo = function(marker) {
-    console.log(marker);
-    console.log(infowindow);
-    infowindow.setContent('moo');
-    infowindow.open(map, marker);
-  }
 
   // Randomize markers around the city center
   var locRnd = function() {
@@ -18,41 +10,47 @@ if (Meteor.isClient) {
   var userQueues = {};
   var userMarkers = {};
   var addUserToMap = function(user) {
+    // skip users with no location
     if (!user.profile || !user.profile.location)
       return;
 
     var location = locations.get(user.profile.location);
     if (location) {
+
       var marker = user.profile.pic ? new RichMarker({
+          // if there's a picture, use a RichMarker
           position: new google.maps.LatLng(location.lat + locRnd(), location.lng + locRnd()),
           content: '<img class="faceMarker" src="' + user.profile.pic + '" />',
           anchor: new google.maps.Size(-16, 0)
       }) : new google.maps.Marker({
-        position: new google.maps.LatLng(location.lat + locRnd(), location.lng + locRnd()),
-        //map: map        
+          // otherwise just use a regular marker
+         position: new google.maps.LatLng(location.lat + locRnd(), location.lng + locRnd()),
       });
+
+      // keep track of all markers and who they belong to
       marker._user = user;
       userMarkers[user._id] = marker;
 
-      google.maps.event.addListener(marker, 'click', function() {
-        var node = $('<div style="width: 200px; height: 150px;" class="infowindow">'
-          + '<p><b>' + user.profile.name + '</b></p>'
-          + '<p>' + user.profile.location + '</p>'
-          + '<p><img src="' + user.profile.pic + '" /></p>'
-          + '</div>')[0];
-        infowindow.setContent(node);
-        infowindow.setOptions({maxWidth: 500});
-        infowindow.open(map, marker);                
-      });
-
+      google.maps.event.addListener(marker, 'click', markerInfo);
       markerCluster.addMarker(marker);
 
     } else {
+
       if (!userQueues[user.profile.location])
         userQueues[user.profile.location] = [];
       userQueues[user.profile.location].push(user);
-      console.log('no location for ' + user.profile.location);
+
     }
+  }
+
+  var markerInfo = function() {
+      var node = $('<div style="width: 200px; height: 150px;" class="infowindow">'
+        + '<p><b>' + this._user.profile.name + '</b></p>'
+        + '<p>' + this._user.profile.location + '</p>'
+        + '<p><img src="' + this._user.profile.pic + '" /></p>'
+        + '</div>')[0];
+      infowindow.setContent(node);
+      infowindow.open(map, this);
   }
 
   GoogleMaps.init(
@@ -79,10 +77,12 @@ if (Meteor.isClient) {
             function() {
 
               Meteor.users.find().observe({
+
                 'added': function(user) {
                   addUserToMap(user);
-                }, 'changed': function(user) {
-                  console.log('change');
+                },
+
+                'changed': function(user) {
                   if (userMarkers[user._id]) {
                     markerCluster.removeMarker(userMarkers[user._id]);
                     delete(userMarkers[user._id]);
@@ -92,10 +92,18 @@ if (Meteor.isClient) {
                     Meteor.call('checkLocation', user.profile.location);
                   });
                   addUserToMap(user);
-                }
-              });
+                },
 
-            });
+                'removed': function(user) {
+                  if (userMarkers[user._id]) {
+                    markerCluster.removeMarker(userMarkers[user._id]);
+                    delete(userMarkers[user._id]);
+                  }
+                }
+
+              }); /* observe */
+
+            }); /* richmarker init */
       }
   );
 
@@ -106,30 +114,6 @@ if (Meteor.isClient) {
       google: ['profile']
     }
   });
-
-  fbInit = function() {
-    // don't init until FB API available
-    Deps.autorun(function() {
-      var user = Meteor.user();
-      if (!user)
-        return;
-
-      // TODO, rather do this server side
-      if (!user.profile.location) {
-        if (user.services && user.services.facebook) {
-          FB.api('/me?fields=location',
-            { access_token: user.services.facebook.accessToken },
-            function(response) {
-              Meteor.users.update(user._id, { $set: {
-                'profile.location': response.location.name
-              }});
-              Meteor.call('checkLocation', response.location.name);
-              addUserToMap(Meteor.user());
-            });
-        }
-      }
-    });
-  }
 
   Template.box.username = function() {
     return Meteor.user().profile.name;
@@ -189,11 +173,10 @@ Locations.find().observe({
       lng: doc.geometry.location.lng
     };
 
-    // now we have the location data, dequeue
+    // if location was added after user [was queued], dequeue
     if (Meteor.isClient) {
       if (userQueues[doc.reqName]) {
         _.each(userQueues[doc.reqName], function(user) {
-          console.log('dequeue');
           addUserToMap(user);
         });
         delete(userQueues[doc.ReqName]);
@@ -263,6 +246,9 @@ if (Meteor.isServer) {
   var gm = Meteor.require('googlemaps');
   gm.geocode = Async.wrap(gm.geocode);
 
+  var fbgraph = Meteor.require('fbgraph');
+  fbgraph.get = Async.wrap(fbgraph.get);
+
   Accounts.onCreateUser(function(options, user) {
     if (!user.services)
       return;
@@ -299,6 +285,10 @@ if (Meteor.isServer) {
 
     } else if (user.services.facebook) {
 
+      var res = fbgraph.get('me?fields=location&access_token='
+        + user.services.facebook.accessToken);
+
+      options.profile.location = res.location.name;
       options.profile.pic = '//graph.facebook.com/'+user.services.facebook.id+'/picture';
 
     } else {
@@ -345,9 +335,4 @@ if (Meteor.isServer) {
       'geometry.location.lat': 1, 'geometry.location.lng': 1
     } });
   });
-
-  // not ideal, just for clientside FB, must mo
-  Meteor.publish("userData", function () {
-    return Meteor.users.find({_id: this.userId}, {fields: {'services.facebook': 1}});
-  });  
 }

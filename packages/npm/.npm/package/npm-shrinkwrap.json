@@ -179,6 +179,38 @@
           "version": "0.1.5"
         }
       }
+    },
+    "fbgraph": {
+      "version": "0.2.8",
+      "dependencies": {
+        "request": {
+          "version": "2.11.4",
+          "dependencies": {
+            "form-data": {
+              "version": "0.0.3",
+              "dependencies": {
+                "combined-stream": {
+                  "version": "0.0.3",
+                  "dependencies": {
+                    "delayed-stream": {
+                      "version": "0.0.5"
+                    }
+                  }
+                },
+                "async": {
+                  "version": "0.1.9"
+                }
+              }
+            },
+            "mime": {
+              "version": "1.2.7"
+            }
+          }
+        },
+        "qs": {
+          "version": "0.5.6"
+        }
+      }
     }
   }
 }

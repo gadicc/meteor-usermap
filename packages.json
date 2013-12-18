@@ -1,5 +1,6 @@
 {
 	"github": "0.1.12",
 	"googleapis": "0.4.7",
-	"googlemaps": "0.1.9"
+	"googlemaps": "0.1.9",
+	"fbgraph": "0.2.8"
 }
