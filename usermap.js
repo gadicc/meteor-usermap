@@ -109,9 +109,16 @@ if (Meteor.isClient) {
 
   Accounts.ui.config({
     requestPermissions: {
+      // https://developers.facebook.com/docs/facebook-login/permissions/
       facebook: ['user_location'],
-      github: ['user'],
+      // https://developers.google.com/oauthplayground/
+      // http://discovery-check.appspot.com/
       google: ['profile']
+      /*
+       * http://developer.github.com/v3/oauth/#scopes
+       * unnecessary write permission.  profile is public by default
+       * github: ['user']
+       */
     }
   });
 
@@ -260,10 +267,7 @@ if (Meteor.isServer) {
           token: user.services.github.accessToken
       });
 
-      var res = github.user.get({
-          user: "gadicohen"
-      });
-
+      var res = github.user.get({});
       options.profile.pic = res.avatar_url;
       options.profile.location = res.location;
 
