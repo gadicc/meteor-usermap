@@ -15,9 +15,10 @@
 
 div.infowindow img { height: 50px; border: 1px solid black; }
 
-img.faceMarker {
+div.faceMarker {
 	width: 30px; height: 30px;
 	border: 1px solid black;
 }
+div.faceMarker img { width: 30px; height: 30px; }
 
 #box { font-size: 80%; }

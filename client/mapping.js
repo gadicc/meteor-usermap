@@ -28,7 +28,7 @@ function addUserToMap(user) {
     var marker = user.profile.pic ? new RichMarker({
         // if there's a picture, use a RichMarker
         position: new google.maps.LatLng(location.lat + locRnd(), location.lng + locRnd()),
-        content: '<img class="faceMarker" src="' + user.profile.pic + '" />',
+        content: '<div class="faceMarker"><img src="' + user.profile.pic + '" /></div>',
         anchor: new google.maps.Size(-16, 0)
     }) : new google.maps.Marker({
         // otherwise just use a regular marker
